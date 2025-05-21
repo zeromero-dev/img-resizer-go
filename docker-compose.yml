@@ -1,13 +1,45 @@
-version: "3.8"
-
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - STORAGE_PATH=/app/storage
+    volumes:
+      - storage-data:/app/storage
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["go", "run", "cmd/worker/main.go"]
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - STORAGE_PATH=/app/storage
+    volumes:
+      - storage-data:/app/storage
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq
     ports:
-      - "5672:5672" # AMQP
-      - "15672:15672" # Management UI
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     restart: unless-stopped
+
+volumes:
+  storage-data:
+  rabbitmq-data:
