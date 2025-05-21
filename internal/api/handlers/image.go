@@ -131,7 +131,8 @@ func (h *ImageHandler) GetImage(c *gin.Context) {
 	}
 }
 
-// check files for ex
+// Checks file for extensions
+// Can add more as needed
 func isImage(filename string) bool {
 	ext := filepath.Ext(filename)
 	switch ext {

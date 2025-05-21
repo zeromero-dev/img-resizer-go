@@ -12,6 +12,12 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+type Queue interface {
+	PublishTask(task *models.ImageProcessingTask) error
+	ConsumeTask(handler func(task *models.ImageProcessingTask) error) error
+	Close() error
+}
+
 // RabbitMQ implements the Queue interface for RabbitMQ
 type RabbitMQ struct {
 	conn         *amqp.Connection
@@ -21,7 +27,6 @@ type RabbitMQ struct {
 	routingKey   string
 }
 
-// NewRabbitMQ creates a new RabbitMQ instance
 func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 	// Connect to RabbitMQ
 	conn, err := amqp.Dial(cfg.RabbitMQ.URL)
@@ -104,33 +109,6 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 	}, nil
 }
 
-// func (r *RabbitMQ) PublishTask(task *models.ImageProcessingTask) error {
-// 	// Convert task to JSON
-// 	body, err := json.Marshal(task)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to marshal task: %w", err)
-// 	}
-
-// 	// Publish the message
-// 	err = r.channel.Publish(
-// 		r.exchangeName, // exchange
-// 		r.routingKey,   // routing key
-// 		false,          // mandatory
-// 		false,          // immediate
-// 		amqp.Publishing{
-// 			DeliveryMode: amqp.Persistent,
-// 			ContentType:  "application/json",
-// 			Body:         body,
-// 		},
-// 	)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to publish a message: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// PublishTask publishes a task to the queue
 func (r *RabbitMQ) PublishTask(task *models.ImageProcessingTask) error {
 	// Convert task to JSON
 	body, err := json.Marshal(task)
@@ -162,7 +140,6 @@ func (r *RabbitMQ) PublishTask(task *models.ImageProcessingTask) error {
 	return nil
 }
 
-// ConsumeTask consumes a task from the queue
 func (r *RabbitMQ) ConsumeTask(handler func(task *models.ImageProcessingTask) error) error {
 	// Start consuming messages
 	msgs, err := r.channel.Consume(
@@ -209,7 +186,6 @@ func (r *RabbitMQ) ConsumeTask(handler func(task *models.ImageProcessingTask) er
 	return nil
 }
 
-// Close closes the connection to RabbitMQ
 func (r *RabbitMQ) Close() error {
 	var firstErr error
 

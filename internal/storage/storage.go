@@ -18,7 +18,6 @@ type Storage interface {
 	List() ([]string, error)
 }
 
-// LocalStorage implements Storage interface for local file system
 type LocalStorage struct {
 	basePath string
 }
@@ -33,7 +32,6 @@ func NewStorage(cfg *config.Config) (Storage, error) {
 	}
 }
 
-// NewLocalStorage creates a new local storage
 func NewLocalStorage(basePath string) (Storage, error) {
 	// Create base directory if it doesn't exist
 	if err := os.MkdirAll(basePath, 0755); err != nil {
