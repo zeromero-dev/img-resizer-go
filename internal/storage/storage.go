@@ -5,9 +5,9 @@ import (
 	"img-resizer/internal/config"
 	"img-resizer/internal/models"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Storage defines the interface for image storage
@@ -15,6 +15,7 @@ type Storage interface {
 	Save(id string, quality models.ImageQuality, reader io.Reader) (string, error)
 	Get(id string, quality models.ImageQuality) (io.ReadCloser, error)
 	Delete(id string, quality models.ImageQuality) error
+	List() ([]string, error)
 }
 
 // LocalStorage implements Storage interface for local file system
@@ -66,8 +67,8 @@ func (s *LocalStorage) Save(id string, quality models.ImageQuality, reader io.Re
 		return "", err
 	}
 	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("failed to close file: %v", err)
+		if cerr := file.Close(); cerr != nil {
+			fmt.Printf("failed to close file after save error: %v", cerr)
 		}
 	}()
 
@@ -100,4 +101,36 @@ func (s *LocalStorage) Delete(id string, quality models.ImageQuality) error {
 	}
 
 	return os.Remove(path)
+}
+
+func (s *LocalStorage) List() ([]string, error) {
+	var images []string
+	err := filepath.Walk(s.basePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && filepath.Ext(path) == ".jpg" {
+			// Extract ID from filename (remove quality suffix and extension)
+			filename := filepath.Base(path)
+			parts := strings.Split(filename, "_")
+			if len(parts) > 0 {
+				id := parts[0]
+				if !contains(images, id) {
+					images = append(images, id)
+				}
+			}
+		}
+		return nil
+	})
+	return images, err
+}
+
+// Helper function to check if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
