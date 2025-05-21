@@ -8,6 +8,7 @@ import (
 	"img-resizer/internal/queue"
 	"img-resizer/internal/storage"
 	"io"
+	"log"
 	"net/http"
 	"path/filepath"
 
@@ -15,14 +16,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// ImageHandler handles image-related requests
 type ImageHandler struct {
 	storage   storage.Storage
 	queue     *queue.RabbitMQ
 	processor *processor.Processor
 }
 
-// NewImageHandler creates a new image handler
 func NewImageHandler(storage storage.Storage, queue *queue.RabbitMQ) *ImageHandler {
 	return &ImageHandler{
 		storage:   storage,
@@ -39,15 +38,17 @@ func (h *ImageHandler) UploadImage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No image provided"})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to close file"})
+		}
+	}()
 
-	// Check if the file is an image
 	if !isImage(header.Filename) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File is not an image"})
 		return
 	}
 
-	// Generate a unique ID for the image
 	id := uuid.New().String()
 
 	// Read the image data
@@ -112,7 +113,11 @@ func (h *ImageHandler) GetImage(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Image not found"})
 		return
 	}
-	defer image.Close()
+	defer func() {
+		if err := image.Close(); err != nil {
+			log.Printf("failed to close image: %v", err)
+		}
+	}()
 
 	// Set the content type
 	c.Header("Content-Type", "image/jpeg")
@@ -126,11 +131,11 @@ func (h *ImageHandler) GetImage(c *gin.Context) {
 	}
 }
 
-// isImage checks if a file is an image based on its extension
+// check files for ex
 func isImage(filename string) bool {
 	ext := filepath.Ext(filename)
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+	case ".jpg", ".jpeg", ".png", ".webp":
 		return true
 	default:
 		return false

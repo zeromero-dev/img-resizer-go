@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"img-resizer/internal/config"
 	"img-resizer/internal/models"
+	"log"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -31,7 +32,9 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 	// Create a channel
 	channel, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("failed to close connection after channel error: %v", cerr)
+		}
 		return nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
@@ -46,8 +49,12 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 		nil,                       // arguments
 	)
 	if err != nil {
-		channel.Close()
-		conn.Close()
+		if cerr := channel.Close(); cerr != nil {
+			log.Printf("failed to close channel after exchange error: %v", cerr)
+		}
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("failed to close connection after exchange error: %v", cerr)
+		}
 		return nil, fmt.Errorf("failed to declare an exchange: %w", err)
 	}
 
@@ -61,8 +68,12 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 		nil,                    // arguments
 	)
 	if err != nil {
-		channel.Close()
-		conn.Close()
+		if cerr := channel.Close(); cerr != nil {
+			log.Printf("failed to close channel after queue declare error: %v", cerr)
+		}
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("failed to close connection after queue declare error: %v", cerr)
+		}
 		return nil, fmt.Errorf("failed to declare a queue: %w", err)
 	}
 
@@ -75,8 +86,12 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 		nil,
 	)
 	if err != nil {
-		channel.Close()
-		conn.Close()
+		if cerr := channel.Close(); cerr != nil {
+			log.Printf("failed to close channel after queue bind error: %v", cerr)
+		}
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("failed to close connection after queue bind error: %v", cerr)
+		}
 		return nil, fmt.Errorf("failed to bind a queue: %w", err)
 	}
 
@@ -170,20 +185,25 @@ func (r *RabbitMQ) ConsumeTask(handler func(task *models.ImageProcessingTask) er
 		err := json.Unmarshal(msg.Body, &task)
 		if err != nil {
 			// Reject the message
-			msg.Reject(false)
+			if err := msg.Reject(true); err != nil {
+				log.Printf("failed to reject message: %v", err)
+			}
 			continue
 		}
 
 		// Process the task
 		err = handler(&task)
 		if err != nil {
-			// Reject the message and requeue it
-			msg.Reject(true)
+			if err := msg.Reject(true); err != nil {
+				log.Printf("failed to reject message: %v", err)
+			}
 			continue
 		}
 
 		// Acknowledge the message
-		msg.Ack(false)
+		if err := msg.Ack(false); err != nil {
+			log.Printf("failed to acknowledge message: %v", err)
+		}
 	}
 
 	return nil
@@ -191,11 +211,17 @@ func (r *RabbitMQ) ConsumeTask(handler func(task *models.ImageProcessingTask) er
 
 // Close closes the connection to RabbitMQ
 func (r *RabbitMQ) Close() error {
+	var firstErr error
+
 	if r.channel != nil {
-		r.channel.Close()
+		if err := r.channel.Close(); err != nil {
+			firstErr = err
+		}
 	}
 	if r.conn != nil {
-		r.conn.Close()
+		if err := r.conn.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil
+	return firstErr
 }

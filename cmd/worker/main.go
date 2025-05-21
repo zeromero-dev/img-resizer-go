@@ -28,7 +28,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize RabbitMQ: %v", err)
 	}
-	defer rabbitMQ.Close()
+	defer func() {
+		if err := rabbitMQ.Close(); err != nil {
+			log.Printf("Failed to close RabbitMQ: %v", err)
+		}
+	}()
 
 	// Initialize processor
 	proc := processor.NewProcessor()
@@ -62,7 +66,11 @@ func processImage(task *models.ImageProcessingTask, storage storage.Storage, pro
 	if err != nil {
 		return fmt.Errorf("failed to get original image: %w", err)
 	}
-	defer originalImage.Close()
+	defer func() {
+		if err := originalImage.Close(); err != nil {
+			log.Printf("Failed to close original image: %v", err)
+		}
+	}()
 
 	// Read the image data
 	imageData, err := proc.ReadAll(originalImage)

@@ -5,6 +5,7 @@ import (
 	"img-resizer/internal/config"
 	"img-resizer/internal/models"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -43,31 +44,33 @@ func NewLocalStorage(basePath string) (Storage, error) {
 	}, nil
 }
 
-// getPath returns the path for an image with the given ID and quality
-func (s *LocalStorage) getPath(id string, quality models.ImageQuality) string {
-	// Create a directory structure based on the first few characters of the ID
-	// to avoid having too many files in a single directory
+func (s *LocalStorage) getPath(id string, quality models.ImageQuality) (string, error) {
 	prefix := id[:2]
 	dir := filepath.Join(s.basePath, prefix)
 
-	// Create directory if it doesn't exist
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
 
-	return filepath.Join(dir, fmt.Sprintf("%s_%s.jpg", id, quality))
+	return filepath.Join(dir, fmt.Sprintf("%s_%s.jpg", id, quality)), nil
 }
 
-// Save saves an image to storage
 func (s *LocalStorage) Save(id string, quality models.ImageQuality, reader io.Reader) (string, error) {
-	path := s.getPath(id, quality)
+	path, err := s.getPath(id, quality)
+	if err != nil {
+		return "", err
+	}
 
-	// Create file
 	file, err := os.Create(path)
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("failed to close file: %v", err)
+		}
+	}()
 
-	// Copy data to file
 	_, err = io.Copy(file, reader)
 	if err != nil {
 		return "", err
@@ -76,11 +79,12 @@ func (s *LocalStorage) Save(id string, quality models.ImageQuality, reader io.Re
 	return path, nil
 }
 
-// Get retrieves an image from storage
 func (s *LocalStorage) Get(id string, quality models.ImageQuality) (io.ReadCloser, error) {
-	path := s.getPath(id, quality)
+	path, err := s.getPath(id, quality)
+	if err != nil {
+		return nil, err
+	}
 
-	// Open file
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -89,10 +93,11 @@ func (s *LocalStorage) Get(id string, quality models.ImageQuality) (io.ReadClose
 	return file, nil
 }
 
-// Delete removes an image from storage
 func (s *LocalStorage) Delete(id string, quality models.ImageQuality) error {
-	path := s.getPath(id, quality)
+	path, err := s.getPath(id, quality)
+	if err != nil {
+		return err
+	}
 
-	// Remove file
 	return os.Remove(path)
 }

@@ -24,7 +24,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize RabbitMQ: %v", err)
 	}
-	defer rabbitMQ.Close()
+	defer func() {
+		if err := rabbitMQ.Close(); err != nil {
+			log.Printf("Failed to close RabbitMQ: %v", err)
+		}
+	}()
 
 	// Set up the router
 	router := api.SetupRouter(storageProvider, rabbitMQ)

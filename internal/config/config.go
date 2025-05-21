@@ -1,11 +1,11 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 )
 
-// Config holds all configuration for the application
 type Config struct {
 	Server   ServerConfig
 	RabbitMQ RabbitMQConfig
@@ -52,9 +52,10 @@ func NewConfig() *Config {
 
 	// Create storage directory if it doesn't exist
 	if config.Storage.Type == "local" {
-		os.MkdirAll(config.Storage.LocalPath, 0755)
+		if err := os.MkdirAll(config.Storage.LocalPath, 0755); err != nil {
+			log.Fatalf("failed to create directory: %v", err)
+		}
 	}
-
 	return config
 }
 
